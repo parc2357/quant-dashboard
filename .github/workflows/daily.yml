@@ -49,7 +49,8 @@ jobs:
             echo "::error::HTML이 100KB 미만입니다. 수집이 실패한 것으로 보고 배포를 중단합니다."
             exit 1
           fi
-          for KEYWORD in "PART 1" "PART 2" "코스피" "S&P 500"; do
+          # HTML에서 &는 &amp;로 이스케이프되므로 앰퍼샌드가 든 문자열은 쓰지 않는다.
+          for KEYWORD in "PART 1" "PART 2" "코스피" "나스닥" "다우존스" "주목할 개별종목"; do
             grep -q "$KEYWORD" dashboard.html || {
               echo "::error::'$KEYWORD' 섹션이 없습니다. 배포를 중단합니다."
               exit 1
