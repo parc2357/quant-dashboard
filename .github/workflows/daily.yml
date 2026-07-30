@@ -1,0 +1,78 @@
+name: 대시보드 매일 갱신
+
+on:
+  schedule:
+    # GitHub Actions의 cron은 UTC 기준이다. 22:00 UTC = 다음날 07:00 KST.
+    # 미국 시장이 한국시간 오전 5~6시에 마감하므로 전일 미국 종가가 확정된 시점이다.
+    - cron: "0 22 * * *"
+  workflow_dispatch: # 버튼으로 즉시 실행 (설치 직후 확인용)
+  push:
+    branches: [main] # 코드를 고치면 바로 다시 배포된다
+
+# Pages 배포에 필요한 최소 권한
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 갱신이 겹치면 나중 것만 남긴다.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # 러너는 UTC라서 지정하지 않으면 화면의 '기준 시각'이 9시간 어긋난다.
+      TZ: Asia/Seoul
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 파이썬 표준 라이브러리만 쓰므로 의존성 설치 단계가 없다.
+      - name: 대시보드 생성
+        run: python3 daily_dashboard.py
+
+      - name: 결과 점검
+        # 수집이 조용히 실패해 빈 페이지가 올라가는 것을 막는다.
+        # 실패하면 이 워크플로가 중단되고, 직전에 배포된 페이지가 그대로 남는다.
+        run: |
+          set -e
+          test -f dashboard.html
+          SIZE=$(wc -c < dashboard.html)
+          echo "생성 크기: ${SIZE} bytes"
+          if [ "$SIZE" -lt 100000 ]; then
+            echo "::error::HTML이 100KB 미만입니다. 수집이 실패한 것으로 보고 배포를 중단합니다."
+            exit 1
+          fi
+          for KEYWORD in "PART 1" "PART 2" "코스피" "S&P 500"; do
+            grep -q "$KEYWORD" dashboard.html || {
+              echo "::error::'$KEYWORD' 섹션이 없습니다. 배포를 중단합니다."
+              exit 1
+            }
+          done
+          echo "점검 통과"
+
+      - name: 배포 폴더 준비
+        run: |
+          mkdir -p _site
+          cp dashboard.html _site/index.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

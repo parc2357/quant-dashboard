@@ -1,0 +1,12 @@
+# 생성물 — 서버가 매번 새로 만든다. 저장소에 둘 이유가 없다.
+dashboard.html
+dashboard_artifact.html
+_site/
+
+# 응답 캐시 (16MB까지 자란다) 와 실행 로그
+cache/
+logs/
+
+__pycache__/
+*.pyc
+.DS_Store
